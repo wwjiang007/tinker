@@ -35,13 +35,17 @@ public class InputParam {
     public final String  storealias;
     public final String  storepass;
     public final boolean ignoreWarning;
+    public final boolean isProtectedApp;
+    public final boolean supportHotplugComponent;
     public final boolean useSign;
 
     /**
      * tinkerPatch.dex
      */
-    public final ArrayList<String>       dexFilePattern;
-    public final ArrayList<String>       dexLoaderPattern;
+    public final ArrayList<String> dexFilePattern;
+    public final ArrayList<String> dexLoaderPattern;
+    public final ArrayList<String> dexIgnoreWarningLoaderPattern;
+
     public final String                  dexMode;
     /**
      * tinkerPatch.lib
@@ -81,10 +85,14 @@ public class InputParam {
         String storealias,
         String storepass,
         boolean ignoreWarning,
+        boolean isProtectedApp,
+        boolean supportHotplugComponent,
         boolean useSign,
 
         ArrayList<String> dexFilePattern,
         ArrayList<String> dexLoaderPattern,
+        ArrayList<String> dexIgnoreChangeLoaderPattern,
+
         String dexMode,
         ArrayList<String> soFilePattern,
         ArrayList<String> resourceFilePattern,
@@ -103,10 +111,13 @@ public class InputParam {
         this.storealias = storealias;
         this.storepass = storepass;
         this.ignoreWarning = ignoreWarning;
+        this.isProtectedApp = isProtectedApp;
+        this.supportHotplugComponent = supportHotplugComponent;
         this.useSign = useSign;
 
         this.dexFilePattern = dexFilePattern;
         this.dexLoaderPattern = dexLoaderPattern;
+        this.dexIgnoreWarningLoaderPattern = dexIgnoreChangeLoaderPattern;
         this.dexMode = dexMode;
 
         this.soFilePattern = soFilePattern;
@@ -132,13 +143,17 @@ public class InputParam {
         private String  storealias;
         private String  storepass;
         private boolean ignoreWarning;
+        private boolean isProtectedApp;
+        private boolean isComponentHotplugSupported;
         private boolean useSign;
 
         /**
          * tinkerPatch.dex
          */
-        private ArrayList<String>       dexFilePattern;
-        private ArrayList<String>       dexLoaderPattern;
+        private ArrayList<String> dexFilePattern;
+        private ArrayList<String> dexLoaderPattern;
+        private ArrayList<String> dexIgnoreWarningLoaderPattern;
+
         private String                  dexMode;
         /**
          * tinkerPatch.lib
@@ -243,8 +258,23 @@ public class InputParam {
             return this;
         }
 
+        public Builder setIsProtectedApp(boolean isProtectedApp) {
+            this.isProtectedApp = isProtectedApp;
+            return this;
+        }
+
+        public Builder setIsComponentHotplugSupported(boolean isComponentHotplugSupported) {
+            this.isComponentHotplugSupported = isComponentHotplugSupported;
+            return this;
+        }
+
         public Builder setDexLoaderPattern(ArrayList<String> dexLoaderPattern) {
             this.dexLoaderPattern = dexLoaderPattern;
+            return this;
+        }
+
+        public Builder setDexIgnoreWarningLoaderPattern(ArrayList<String> loader) {
+            this.dexIgnoreWarningLoaderPattern = loader;
             return this;
         }
 
@@ -278,9 +308,12 @@ public class InputParam {
                     storealias,
                     storepass,
                     ignoreWarning,
+                    isProtectedApp,
+                    isComponentHotplugSupported,
                     useSign,
                     dexFilePattern,
                     dexLoaderPattern,
+                    dexIgnoreWarningLoaderPattern,
                     dexMode,
                     soFilePattern,
                     resourceFilePattern,

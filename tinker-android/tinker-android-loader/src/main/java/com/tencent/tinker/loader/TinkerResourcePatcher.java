@@ -17,14 +17,18 @@
 package com.tencent.tinker.loader;
 
 import android.content.Context;
+import android.content.pm.ApplicationInfo;
 import android.content.res.AssetManager;
 import android.content.res.Resources;
+import android.os.Build;
 import android.util.ArrayMap;
 import android.util.Log;
 
 import com.tencent.tinker.loader.shareutil.ShareConstants;
+import com.tencent.tinker.loader.shareutil.SharePatchFileUtil;
 import com.tencent.tinker.loader.shareutil.ShareReflectUtil;
 
+import java.io.InputStream;
 import java.lang.ref.WeakReference;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
@@ -41,19 +45,19 @@ import static android.os.Build.VERSION_CODES.KITKAT;
  * Thanks for Android Fragmentation
  */
 class TinkerResourcePatcher {
-    private static final String TAG                     = "Tinker.ResourcePatcher";
-    private static final String TEST_ASSETS_VALUE       = "only_use_to_test_tinker_resource.txt";
+    private static final String TAG               = "Tinker.ResourcePatcher";
+    private static final String TEST_ASSETS_VALUE = "only_use_to_test_tinker_resource.txt";
 //    private static final String MIUI_RESOURCE_CLASSNAME = "android.content.res.MiuiResources";
 
     // original object
-    private static Collection<WeakReference<Resources>>  references               = null;
-    private static Object                                currentActivityThread    = null;
-    private static AssetManager                          newAssetManager          = null;
+    private static Collection<WeakReference<Resources>> references            = null;
+    private static Object                               currentActivityThread = null;
+    private static AssetManager                         newAssetManager       = null;
     //    private static ArrayMap<?, WeakReference<?>>         resourceImpls            = null;
 
     // method
-    private static Method                                addAssetPathMethod       = null;
-    private static Method                                ensureStringBlocksMethod = null;
+    private static Method addAssetPathMethod       = null;
+    private static Method ensureStringBlocksMethod = null;
 
     // field
     private static Field assetsFiled           = null;
@@ -61,7 +65,7 @@ class TinkerResourcePatcher {
     private static Field resDir                = null;
     private static Field packagesFiled         = null;
     private static Field resourcePackagesFiled = null;
-//    private static Field        publicSourceDirField     = null;
+    private static Field publicSourceDirField  = null;
 
 //    private static boolean isMiuiSystem = false;
 
@@ -127,8 +131,6 @@ class TinkerResourcePatcher {
                 // N moved the resources to mResourceReferences
                 Field mResourceReferences = resourcesManagerClass.getDeclaredField("mResourceReferences");
                 mResourceReferences.setAccessible(true);
-//                resourceImpls = (ArrayMap<?, WeakReference<?>>) mResourceReferences.get("mResourceImpls");
-
                 references = (Collection<WeakReference<Resources>>) mResourceReferences.get(resourcesManager);
             }
         } else {
@@ -142,23 +144,29 @@ class TinkerResourcePatcher {
         if (references == null) {
             throw new IllegalStateException("resource references is null");
         }
-        try {
+        // fix jianGuo pro has private field 'mAssets' with Resource
+        // try use mResourcesImpl first
+        if (SDK_INT >= 24) {
+            try {
+                // N moved the mAssets inside an mResourcesImpl field
+                resourcesImplFiled = Resources.class.getDeclaredField("mResourcesImpl");
+                resourcesImplFiled.setAccessible(true);
+            } catch (Throwable ignore) {
+                // for safety
+                assetsFiled = Resources.class.getDeclaredField("mAssets");
+                assetsFiled.setAccessible(true);
+            }
+        } else {
             assetsFiled = Resources.class.getDeclaredField("mAssets");
             assetsFiled.setAccessible(true);
-        } catch (Throwable ignore) {
-            // N moved the mAssets inside an mResourcesImpl field
-            resourcesImplFiled = Resources.class.getDeclaredField("mResourcesImpl");
-            resourcesImplFiled.setAccessible(true);
         }
-
 //        final Resources resources = context.getResources();
 //        isMiuiSystem = resources != null && MIUI_RESOURCE_CLASSNAME.equals(resources.getClass().getName());
 
-//        try {
-//            publicSourceDirField = ShareReflectUtil.findField(ApplicationInfo.class, "publicSourceDir");
-//        } catch (NoSuchFieldException e) {
-//            throw new IllegalStateException("cannot find 'mInstrumentation' field");
-//        }
+        try {
+            publicSourceDirField = ShareReflectUtil.findField(ApplicationInfo.class, "publicSourceDir");
+        } catch (NoSuchFieldException ignore) {
+        }
     }
 
     /**
@@ -219,7 +227,15 @@ class TinkerResourcePatcher {
         // Handle issues caused by WebView on Android N.
         // Issue: On Android N, if an activity contains a webview, when screen rotates
         // our resource patch may lost effects.
-//        publicSourceDirField.set(context.getApplicationInfo(), externalResourceFile);
+        // for 5.x/6.x, we found Couldn't expand RemoteView for StatusBarNotification Exception
+        if (Build.VERSION.SDK_INT >= 24) {
+            try {
+                if (publicSourceDirField != null) {
+                    publicSourceDirField.set(context.getApplicationInfo(), externalResourceFile);
+                }
+            } catch (Throwable ignore) {
+            }
+        }
 
         if (!checkResUpdate(context)) {
             throw new TinkerRuntimeException(ShareConstants.CHECK_RES_INSTALL_FAIL);
@@ -237,7 +253,6 @@ class TinkerResourcePatcher {
 //        if (!isMiuiSystem) {
 //            return;
 //        }
-
         Log.w(TAG, "try to clear typedArray cache!");
         // Clear typedArray cache.
         try {
@@ -258,13 +273,16 @@ class TinkerResourcePatcher {
     }
 
     private static boolean checkResUpdate(Context context) {
+        InputStream is = null;
         try {
-            Log.e(TAG, "checkResUpdate success, found test resource assets file " + TEST_ASSETS_VALUE);
-            context.getAssets().open(TEST_ASSETS_VALUE);
+            is = context.getAssets().open(TEST_ASSETS_VALUE);
         } catch (Throwable e) {
             Log.e(TAG, "checkResUpdate failed, can't find test resource assets file " + TEST_ASSETS_VALUE + " e:" + e.getMessage());
             return false;
+        } finally {
+            SharePatchFileUtil.closeQuietly(is);
         }
+        Log.i(TAG, "checkResUpdate success, found test resource assets file " + TEST_ASSETS_VALUE);
         return true;
     }
 }
